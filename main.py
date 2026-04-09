@@ -90,8 +90,8 @@ def run_playwright():
 
         page = context.new_page()
 
-        page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
-        last_waiting_time = time.time()
+        page.goto("https://aternos.org/go/", wait_until="networkidle")
+        time.sleep(5)
 
         current_url = page.url
         current_title = page.title()
@@ -100,7 +100,7 @@ def run_playwright():
 
         while True:
             try:
-                page.wait_for_load_state("load", timeout=10000)
+                page.wait_for_load_state("networkidle", timeout=15000)
 
                 new_url = page.url
                 new_title = page.title()
@@ -112,13 +112,6 @@ def run_playwright():
                     page_text = new_text
                     last_error = ""
                     broadcast_state()
-
-                if current_title == "請稍候...":
-                    if time.time() - last_waiting_time > 60:
-                        page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
-                        last_waiting_time = time.time()
-                else:
-                    last_waiting_time = time.time()
 
             except Exception as e:
                 last_error = str(e)
