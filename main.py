@@ -19,10 +19,16 @@ with sync_playwright() as p:
     )
     page = browser.new_page()
     page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    
     page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
-
+    last_url = page.url
     print(f"Listening on port {PORT}")
+    print("页面标题:", page.title())
 
     while True:
-        print("页面标题:", page.title())
-        time.sleep(10)
+        page.wait_for_load_state("load")
+        current_url = page.url
+        if current_url != last_url:
+            print("页面标题:", page.title())
+            last_url = current_url
+        time.sleep(5)
