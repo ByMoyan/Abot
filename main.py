@@ -1,5 +1,8 @@
 from playwright.sync_api import sync_playwright
 import time
+import os
+
+PORT = int(os.environ.get("PORT", 5000))
 
 with sync_playwright() as p:
     browser = p.chromium.launch(
@@ -17,6 +20,8 @@ with sync_playwright() as p:
     page = browser.new_page()
     page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
+
+    print(f"Listening on port {PORT}")
 
     while True:
         print("页面标题:", page.title())
