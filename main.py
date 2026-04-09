@@ -95,7 +95,7 @@ def run_playwright():
 
         current_url = page.url
         current_title = page.title()
-        page_text = page.text_content("body")[:500]
+        page_text = page.text_content("body")
         broadcast_state()
 
         while True:
