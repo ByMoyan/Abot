@@ -66,6 +66,7 @@ def run_server():
 
 def run_playwright():
     global current_url, current_title, last_error, page_text
+
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
@@ -89,37 +90,8 @@ def run_playwright():
 
         page = context.new_page()
 
-        page.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-
-            Object.defineProperty(navigator, 'platform', {
-                get: () => 'Win32'
-            });
-
-            Object.defineProperty(navigator, 'hardwareConcurrency', {
-                get: () => 8
-            });
-
-            Object.defineProperty(navigator, 'plugins', {
-                get: () => [1, 2, 3, 4, 5]
-            });
-
-            Object.defineProperty(navigator, 'maxTouchPoints', {
-                get: () => 1
-            });
-
-            Object.defineProperty(navigator, 'languages', {
-                get: () => ['zh-TW']
-            });
-
-            const originalQuery = window.navigator.permissions.query;
-            window.navigator.permissions.query = (parameters) =>
-                parameters.name === 'notifications'
-                    ? Promise.resolve({ state: Notification.permission })
-                    : originalQuery(parameters);
-        """)
-
         page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
+        last_waiting_time = time.time()
 
         current_url = page.url
         current_title = page.title()
@@ -140,6 +112,13 @@ def run_playwright():
                     page_text = new_text
                     last_error = ""
                     broadcast_state()
+
+                if current_title == "請稍候...":
+                    if time.time() - last_waiting_time > 60:
+                        page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
+                        last_waiting_time = time.time()
+                else:
+                    last_waiting_time = time.time()
 
             except Exception as e:
                 last_error = str(e)
