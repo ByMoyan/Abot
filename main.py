@@ -90,8 +90,8 @@ def run_playwright():
 
         page = context.new_page()
 
-        page.goto("https://aternos.org/go/", wait_until="networkidle")
-        time.sleep(5)
+        page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
+        time.sleep(8)
 
         current_url = page.url
         current_title = page.title()
@@ -100,7 +100,8 @@ def run_playwright():
 
         while True:
             try:
-                page.wait_for_load_state("networkidle", timeout=15000)
+                page.wait_for_load_state("domcontentloaded", timeout=15000)
+                time.sleep(5)
 
                 new_url = page.url
                 new_title = page.title()
