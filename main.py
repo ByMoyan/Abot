@@ -20,7 +20,7 @@ page_text = ""
 @app.route("/")
 def index():
     return render_template_string("""
-        <h2>Playwright 状态</h2>
+        <h2>当前状态</h2>
         <div>当前 URL: <span id="url">{{ url }}</span></div>
         <div>页面标题: <span id="title">{{ title }}</span></div>
         <div>加载出错: <span id="error">{{ error }}</span></div>
@@ -91,6 +91,18 @@ def run_playwright():
 
         page.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+
+            Object.defineProperty(navigator, 'platform', {
+                get: () => 'Win32'
+            });
+
+            Object.defineProperty(navigator, 'hardwareConcurrency', {
+                get: () => 8
+            });
+
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5]
+            });
         """)
 
         page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
