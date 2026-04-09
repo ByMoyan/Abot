@@ -27,7 +27,7 @@ def index():
         <div>页面内容: <pre id="text">{{ text }}</pre></div>
 
         <script>
-        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const ws = new WebSocket(`wss://${location.host}/ws`);
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             document.getElementById("url").textContent = data.url;
@@ -79,8 +79,20 @@ def run_playwright():
                 "--no-zygote"
             ]
         )
-        page = browser.new_page()
-        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 720},
+            locale="zh-TW",
+            timezone_id="Asia/Taipei"
+        )
+
+        page = context.new_page()
+
+        page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+        """)
+
         page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
 
         current_url = page.url
@@ -91,14 +103,22 @@ def run_playwright():
         while True:
             try:
                 page.wait_for_load_state("load", timeout=10000)
-                if page.url != current_url or page.title() != current_title:
-                    current_url = page.url
-                    current_title = page.title()
-                    page_text = page.text_content("body")[:500]
+
+                new_url = page.url
+                new_title = page.title()
+                new_text = page.text_content("body")[:500]
+
+                if new_url != current_url or new_title != current_title or new_text != page_text:
+                    current_url = new_url
+                    current_title = new_title
+                    page_text = new_text
+                    last_error = ""
                     broadcast_state()
+
             except Exception as e:
                 last_error = str(e)
                 broadcast_state()
+
             time.sleep(1)
 
 threading.Thread(target=run_server, daemon=True).start()
