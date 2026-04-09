@@ -15,6 +15,7 @@ clients = set()
 current_url = "尚未访问"
 current_title = "尚未访问"
 last_error = ""
+page_text = ""
 
 @app.route("/")
 def index():
@@ -23,6 +24,7 @@ def index():
         <div>当前 URL: <span id="url">{{ url }}</span></div>
         <div>页面标题: <span id="title">{{ title }}</span></div>
         <div>加载出错: <span id="error">{{ error }}</span></div>
+        <div>页面内容: <pre id="text">{{ text }}</pre></div>
 
         <script>
         const ws = new WebSocket(`ws://${location.host}/ws`);
@@ -31,9 +33,10 @@ def index():
             document.getElementById("url").textContent = data.url;
             document.getElementById("title").textContent = data.title;
             document.getElementById("error").textContent = data.error;
+            document.getElementById("text").textContent = data.text;
         };
         </script>
-    """, url=current_url, title=current_title, error=last_error)
+    """, url=current_url, title=current_title, error=last_error, text=page_text)
 
 @sock.route("/ws")
 def websocket(ws):
@@ -52,7 +55,8 @@ def broadcast_state():
             ws.send(json.dumps({
                 "url": current_url,
                 "title": current_title,
-                "error": last_error
+                "error": last_error,
+                "text": page_text
             }))
         except:
             pass
@@ -61,7 +65,7 @@ def run_server():
     app.run(host="0.0.0.0", port=PORT)
 
 def run_playwright():
-    global current_url, current_title, last_error
+    global current_url, current_title, last_error, page_text
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
@@ -78,8 +82,10 @@ def run_playwright():
         page = browser.new_page()
         page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
+
         current_url = page.url
         current_title = page.title()
+        page_text = page.text_content("body")[:500]
         broadcast_state()
 
         while True:
@@ -88,6 +94,7 @@ def run_playwright():
                 if page.url != current_url or page.title() != current_title:
                     current_url = page.url
                     current_title = page.title()
+                    page_text = page.text_content("body")[:500]
                     broadcast_state()
             except Exception as e:
                 last_error = str(e)
