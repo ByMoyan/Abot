@@ -5,7 +5,14 @@ with sync_playwright() as p:
     browser = p.chromium.launch(
         headless=True,
         executable_path="/usr/bin/chromium",
-        args=["--disable-blink-features=AutomationControlled"]
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--single-process",
+            "--no-zygote"
+        ]
     )
     page = browser.new_page()
     page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
