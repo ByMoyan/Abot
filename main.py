@@ -81,7 +81,7 @@ def run_playwright():
         )
         page = browser.new_page()
         page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
+        page.goto("https://youtube.com", wait_until="domcontentloaded")
 
         current_url = page.url
         current_title = page.title()
