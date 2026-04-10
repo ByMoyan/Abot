@@ -1,104 +1,105 @@
+from playwright.sync_api import sync_playwright
 from flask import Flask, render_template_string
 from flask_sock import Sock
-from playwright.sync_api import sync_playwright
 import threading
-import json
 import time
 import os
+import json
 
+PORT = int(os.environ.get("PORT", 5000))
 app = Flask(__name__)
 sock = Sock(app)
 
 clients = set()
 
-USERNAME = "sohai_tim_bot"
-PASSWORD = "aa123ben"
+current_url = "尚未访问"
+current_title = "尚未访问"
+last_error = ""
+page_text = ""
 
-# ========= 网页 =========
 @app.route("/")
 def index():
     return render_template_string("""
-    <h3>Aternos运行日志</h3>
-    <pre id="log"></pre>
+        <h2>Playwright 状态</h2>
+        <div>当前 URL: <span id="url">{{ url }}</span></div>
+        <div>页面标题: <span id="title">{{ title }}</span></div>
+        <div>加载出错: <span id="error">{{ error }}</span></div>
+        <div>页面内容: <pre id="text">{{ text }}</pre></div>
 
-    <script>
+        <script>
         const ws = new WebSocket(`ws://${location.host}/ws`);
-        ws.onmessage = (e) => {
-            const data = JSON.parse(e.data);
-            document.getElementById("log").textContent += data.log + "\\n";
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            document.getElementById("url").textContent = data.url;
+            document.getElementById("title").textContent = data.title;
+            document.getElementById("error").textContent = data.error;
+            document.getElementById("text").textContent = data.text;
         };
-    </script>
-    """)
+        </script>
+    """, url=current_url, title=current_title, error=last_error, text=page_text)
 
-# ========= websocket =========
 @sock.route("/ws")
-def ws(ws):
+def websocket(ws):
     clients.add(ws)
     try:
-        while ws.receive() is not None:
-            pass
+        while True:
+            msg = ws.receive()
+            if msg is None:
+                break
     finally:
         clients.remove(ws)
 
-# ========= 推送日志 =========
-def push(msg):
-    print(msg, flush=True)
-    for c in list(clients):
+def broadcast_state():
+    for ws in clients:
         try:
-            c.send(json.dumps({"log": msg}))
+            ws.send(json.dumps({
+                "url": current_url,
+                "title": current_title,
+                "error": last_error,
+                "text": page_text
+            }))
         except:
             pass
 
-# ========= Playwright =========
-def run():
-    push("启动Playwright")
+def run_server():
+    app.run(host="0.0.0.0", port=PORT)
 
+def run_playwright():
+    global current_url, current_title, last_error, page_text
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
+            executable_path="/usr/bin/chromium",
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--single-process",
+                "--no-zygote"
+            ]
         )
-
         page = browser.new_page()
-
-        # 1. 打开网站
-        push("打开 Aternos")
+        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
 
-        # 2. 输入账号
-        push("输入账号")
-        page.fill("input.username", USERNAME)
+        current_url = page.url
+        current_title = page.title()
+        page_text = page.text_content("body")[:500]
+        broadcast_state()
 
-        push("输入密码")
-        page.fill("input.password", PASSWORD)
-
-        # 3. 登录
-        push("点击登录")
-        page.click("button.login-button")
-
-        # 4. 等待登录成功
-        try:
-            page.wait_for_selector("a.servercard", timeout=20000)
-            push("登录成功")
-        except:
-            push("登录失败")
-            browser.close()
-            return
-
-        # 5. 进入服务器列表
-        push("进入服务器列表")
-        page.goto("https://aternos.org/servers/", wait_until="domcontentloaded")
-
-        # 6. 循环监控
         while True:
             try:
-                push(f"运行中 | {page.url} | {page.title()}")
+                page.wait_for_load_state("load", timeout=10000)
+                if page.url != current_url or page.title() != current_title:
+                    current_url = page.url
+                    current_title = page.title()
+                    page_text = page.text_content("body")[:500]
+                    broadcast_state()
             except Exception as e:
-                push("错误: " + str(e))
+                last_error = str(e)
+                broadcast_state()
+            time.sleep(1)
 
-            time.sleep(5)
-
-# ========= 启动线程 =========
-if __name__ == "__main__":
-    threading.Thread(target=run, daemon=True).start()
-    app.run(host="0.0.0.0", port=5000)
+threading.Thread(target=run_server, daemon=True).start()
+run_playwright()
