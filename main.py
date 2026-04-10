@@ -20,7 +20,7 @@ page_text = ""
 @app.route("/")
 def index():
     return render_template_string("""
-        <h2>Playwright 状态</h2>
+        <h2>当前状态</h2>
         <div>当前 URL: <span id="url">{{ url }}</span></div>
         <div>页面标题: <span id="title">{{ title }}</span></div>
         <div>加载出错: <span id="error">{{ error }}</span></div>
