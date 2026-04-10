@@ -43,8 +43,7 @@ def websocket(ws):
     clients.add(ws)
     try:
         while True:
-            msg = ws.receive()
-            if msg is None:
+            if ws.receive() is None:
                 break
     finally:
         clients.remove(ws)
@@ -88,19 +87,46 @@ def run_playwright():
             timezone_id="Asia/Taipei"
         )
 
+        context.add_cookies([
+            {
+                "name": "ATERNOS_LANGUAGE",
+                "value": "zh-TW",
+                "domain": "aternos.org",
+                "path": "/"
+            },
+            {
+                "name": "_ga",
+                "value": "GA1.1.408895729.1775636738",
+                "domain": ".aternos.org",
+                "path": "/"
+            },
+            {
+                "name": "ATERNOS_SESSION",
+                "value": "LUB03uTxkBGyx6mkIkXfD2fp8JreMwy20cj4c6OYcofsmiaTZkNUeGEQ8W8RMAu0YPOKVfEzZ8wPxSnWrylwCVUquq9Lnk5qYQ6g",
+                "domain": "aternos.org",
+                "path": "/"
+            },
+            {
+                "name": "_ga_70M94GH0FD",
+                "value": "GS2.1.s1775636738$o1$g1$t1775636742$j56$l0$h0",
+                "domain": ".aternos.org",
+                "path": "/"
+            }
+        ])
+
         page = context.new_page()
 
-        page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
-        time.sleep(8)
+        page.goto("https://aternos.org/go/", wait_until="load")
+        time.sleep(10)
 
         current_url = page.url
         current_title = page.title()
-        page_text = page.text_content("body")
+        page_text = page.text_content("body")[:500]
         broadcast_state()
 
         while True:
             try:
-                page.wait_for_load_state("domcontentloaded", timeout=15000)
+                page.wait_for_load_state("load", timeout=15000)
                 time.sleep(5)
 
                 new_url = page.url
