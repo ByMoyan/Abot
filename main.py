@@ -10,29 +10,19 @@ app = Flask(__name__)
 sock = Sock(app)
 
 clients = set()
-logs = []
 
 USERNAME = "sohai_tim_bot"
 PASSWORD = "aa123ben"
-SERVER_NAME = "87666test"
-STATE_FILE = "state.json"
 
-def push(msg):
-    logs.append(msg)
-    for ws in list(clients):
-        try:
-            ws.send(json.dumps({"log": msg}))
-        except:
-            pass
-
+# ========= 网页 =========
 @app.route("/")
 def index():
     return render_template_string("""
-    <h3>运行日志</h3>
+    <h3>Aternos运行日志</h3>
     <pre id="log"></pre>
 
     <script>
-        const ws = new WebSocket(`wss://${location.host}/ws`);
+        const ws = new WebSocket(`ws://${location.host}/ws`);
         ws.onmessage = (e) => {
             const data = JSON.parse(e.data);
             document.getElementById("log").textContent += data.log + "\\n";
@@ -40,8 +30,9 @@ def index():
     </script>
     """)
 
+# ========= websocket =========
 @sock.route("/ws")
-def ws_handler(ws):
+def ws(ws):
     clients.add(ws)
     try:
         while ws.receive() is not None:
@@ -49,124 +40,65 @@ def ws_handler(ws):
     finally:
         clients.remove(ws)
 
-# ===== 登录判断 =====
-def is_logged_in(page):
-    push("检查登录状态...")
-    page.goto("https://aternos.org/servers/", wait_until="domcontentloaded", timeout=30000)
-    try:
-        page.wait_for_selector("a.servercard", timeout=8000)
-        push("已登录")
-        return True
-    except:
-        push("未登录")
-        return False
+# ========= 推送日志 =========
+def push(msg):
+    print(msg, flush=True)
+    for c in list(clients):
+        try:
+            c.send(json.dumps({"log": msg}))
+        except:
+            pass
 
-# ===== 登录流程 =====
-def attempt_login(page, context):
-    push("进入登录页")
-    page.goto("https://aternos.org/go/", wait_until="domcontentloaded", timeout=30000)
+# ========= Playwright =========
+def run():
+    push("启动Playwright")
 
-    page.fill("input.username", USERNAME)
-    time.sleep(1)
-
-    page.fill("input.password", PASSWORD)
-    time.sleep(1)
-
-    push("点击登录")
-    page.click("button.login-button")
-
-    try:
-        page.wait_for_selector("a.servercard", timeout=15000)
-        context.storage_state(path=STATE_FILE)
-        push("登录成功（已保存session）")
-        return True
-    except:
-        push("登录失败")
-        return False
-
-# ===== 选择服务器 =====
-def select_server(page):
-    push("进入服务器列表")
-    selector = f'a.servercard[title="{SERVER_NAME}"]'
-    page.wait_for_selector(selector, timeout=15000)
-    page.click(selector)
-    push("已选择服务器")
-
-# ===== 主逻辑 =====
-def run_playwright():
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--single-process",
-                "--no-zygote"
-            ]
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
         )
 
-        context = browser.new_context(
-            user_agent="Mozilla/5.0",
-            viewport={"width": 1280, "height": 720},
-            locale="zh-TW",
-            timezone_id="Asia/Taipei"
-        )
+        page = browser.new_page()
 
-        page = context.new_page()
+        # 1. 打开网站
+        push("打开 Aternos")
+        page.goto("https://aternos.org/go/", wait_until="domcontentloaded")
 
-        # ===== 1. 判断是否已登录 =====
-        logged_in = False
+        # 2. 输入账号
+        push("输入账号")
+        page.fill("input.username", USERNAME)
 
+        push("输入密码")
+        page.fill("input.password", PASSWORD)
+
+        # 3. 登录
+        push("点击登录")
+        page.click("button.login-button")
+
+        # 4. 等待登录成功
         try:
-            if os.path.exists(STATE_FILE):
-                push("检测到本地session，尝试复用")
-                context = browser.new_context(storage_state=STATE_FILE)
-                page = context.new_page()
-
-            logged_in = is_logged_in(page)
+            page.wait_for_selector("a.servercard", timeout=20000)
+            push("登录成功")
         except:
-            logged_in = False
-
-        # ===== 2. 未登录则登录 =====
-        if not logged_in:
-            push("开始登录")
-
-            context = browser.new_context(
-                user_agent="Mozilla/5.0",
-                viewport={"width": 1280, "height": 720},
-                locale="zh-TW",
-                timezone_id="Asia/Taipei"
-            )
-            page = context.new_page()
-
-            for i in range(3):
-                if attempt_login(page, context):
-                    logged_in = True
-                    break
-                push(f"尝试第{i+1}次登录")
-
-        if not logged_in:
             push("登录失败")
             browser.close()
             return
 
-        # ===== 3. 进入服务器列表前等待 =====
-        push("进入伺服器选择页面")
-        page.goto("https://aternos.org/servers/", wait_until="domcontentloaded", timeout=30000)
+        # 5. 进入服务器列表
+        push("进入服务器列表")
+        page.goto("https://aternos.org/servers/", wait_until="domcontentloaded")
 
-        page.wait_for_timeout(3000)
-        push("选择服务器")
-
-        # ===== 4. 选择服务器 =====
-        select_server(page)
-
-        push("流程结束")
-
+        # 6. 循环监控
         while True:
+            try:
+                push(f"运行中 | {page.url} | {page.title()}")
+            except Exception as e:
+                push("错误: " + str(e))
+
             time.sleep(5)
-            push(f"运行中 | {page.title()} | {page.url}")
 
-threading.Thread(target=run_playwright, daemon=True).start()
-
-app.run(host="0.0.0.0", port=5000)
+# ========= 启动线程 =========
+if __name__ == "__main__":
+    threading.Thread(target=run, daemon=True).start()
+    app.run(host="0.0.0.0", port=5000)
